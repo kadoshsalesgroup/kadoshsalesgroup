@@ -1,0 +1,5 @@
+{
+  "name": "CRM Kadosh",
+  "description": "A lightweight sales CRM application for Kadosh to manage leads, sales processes, and track KPIs for sales advisors.",
+  "requestFramePermissions": []
+}
