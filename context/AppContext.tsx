@@ -1,9 +1,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useMemo } from 'react';
-// FIX: Imported Lot and LotStatus types for inventory management.
-import { Lead, Asesor, Venta, StatusProspecto, Role, AsesorStatus, SaleStage, SaleStatus, MonthlyGoal, Lot, LotStatus } from '../types';
-// FIX: Imported initialInventory for the inventory state.
-import { initialAsesores, initialLeads, initialVentas, initialMonthlyGoals, initialInventory } from '../data/initialData';
+import { Lead, Asesor, Venta, StatusProspecto, Role, AsesorStatus, SaleStage, SaleStatus, MonthlyGoal } from '../types';
+import { initialAsesores, initialLeads, initialVentas, initialMonthlyGoals } from '../data/initialData';
 
 export type CurrentUser = Asesor | { id: 'LIDER'; nombreCompleto: string; email: string; } | null;
 
@@ -30,13 +28,6 @@ interface AppContextType {
   setMonthlyGoals: React.Dispatch<React.SetStateAction<MonthlyGoal[]>>;
   addOrUpdateMonthlyGoal: (goal: Omit<MonthlyGoal, 'id'>) => void;
 
-  // FIX: Add inventory state and methods to context type.
-  inventory: Lot[];
-  setInventory: React.Dispatch<React.SetStateAction<Lot[]>>;
-  addLot: (lot: Omit<Lot, 'id'>) => void;
-  updateLot: (updatedLot: Lot) => void;
-  deleteLot: (lotId: string) => void;
-
   currentUser: CurrentUser;
   login: (email: string) => boolean;
   logout: () => void;
@@ -50,8 +41,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [asesores, setAsesores] = useState<Asesor[]>(initialAsesores);
   const [ventas, setVentas] = useState<Venta[]>(initialVentas);
   const [monthlyGoals, setMonthlyGoals] = useState<MonthlyGoal[]>(initialMonthlyGoals);
-  // FIX: Initialize inventory state using useLocalStorage.
-  const [inventory, setInventory] = useState<Lot[]>(initialInventory);
   const [currentUser, setCurrentUser] = useState<CurrentUser>(null);
 
   const role = useMemo(() => {
@@ -213,20 +202,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAsesores(prev => prev.map(a => a.id === updatedAsesor.id ? updatedAsesor : a));
     return true;
   };
-  
-  // FIX: Implement inventory management functions (add, update, delete).
-  const addLot = (lotData: Omit<Lot, 'id'>) => {
-    const newLot: Lot = { ...lotData, id: new Date().getTime().toString() };
-    setInventory(prev => [...prev, newLot]);
-  };
-  
-  const updateLot = (updatedLot: Lot) => {
-    setInventory(prev => prev.map(lot => lot.id === updatedLot.id ? updatedLot : lot));
-  };
-  
-  const deleteLot = (lotId: string) => {
-    setInventory(prev => prev.filter(lot => lot.id !== lotId));
-  };
 
   const addOrUpdateMonthlyGoal = (goalData: Omit<MonthlyGoal, 'id'>) => {
     setMonthlyGoals(prev => {
@@ -252,8 +227,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     asesores, setAsesores, addAsesor, updateAsesor,
     ventas, setVentas, addVenta, updateVenta,
     monthlyGoals, setMonthlyGoals, addOrUpdateMonthlyGoal,
-    // FIX: Expose inventory state and methods through context provider.
-    inventory, setInventory, addLot, updateLot, deleteLot,
     currentUser, login, logout, role
   };
 

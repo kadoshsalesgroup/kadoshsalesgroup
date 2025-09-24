@@ -17,20 +17,6 @@ export interface Asesor {
   estatus: AsesorStatus;
 }
 
-// FIX: Added LotStatus enum and Lot interface for inventory management.
-export enum LotStatus {
-    Disponible = 'Disponible',
-    Apartado = 'Apartado',
-    Vendido = 'Vendido',
-}
-
-export interface Lot {
-    id: string;
-    nombreLote: string;
-    precio: number;
-    estatus: LotStatus;
-}
-
 export enum StatusProspecto {
   NoContactado = 'No Contactado',
   Contactado = 'Contactado',

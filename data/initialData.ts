@@ -1,5 +1,5 @@
-// FIX: Import Lot type for inventory.
-import { Asesor, Lead, Venta, MonthlyGoal, AsesorStatus, Lot } from '../types';
+
+import { Asesor, Lead, Venta, MonthlyGoal, AsesorStatus } from '../types';
 
 export const initialAsesores: Asesor[] = [
   {
@@ -58,5 +58,3 @@ export const initialLeads: Lead[] = [];
 export const initialVentas: Venta[] = [];
 
 export const initialMonthlyGoals: MonthlyGoal[] = [];
-
-export const initialInventory: Lot[] = [];
