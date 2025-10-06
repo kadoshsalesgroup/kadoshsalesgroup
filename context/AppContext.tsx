@@ -58,12 +58,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     ];
 
     const advisorEmails = [
-      'daniriccociudadmaderas@gmail.com',
+      'mayra.alonso@ciudadmaderas.com',
+      'aolivera.ciudadmaderas@gmail.com',
       'j.ambrosio.cmaderasp@gmail.com',
+      'itzi.robledo.ciudadmaderas@gmail.com',
+      'dbcampa.ciudadmaderas@gmail.com',
+      'samuelmercado.ciudadmaderas@gmail.com',
       'sandra11.ciudadmaderas@gmail.com',
       'marisaj.ciudadmaderas@gmail.com',
       'jperaza13.ciudadmaderas@gmail.com',
-      'alediazciudadmaderas@gmail.com',
+      'daniriccociudadmaderas@gmail.com',
       'mercedes50ciudadmaderas@gmail.com'
     ];
 

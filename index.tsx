@@ -12,8 +12,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <AppProvider>
-      <App />
-    </AppProvider>
+    {/* Fix: Explicitly pass children prop to AppProvider to satisfy TypeScript type checking. */}
+    <AppProvider children={<App />} />
   </React.StrictMode>
 );

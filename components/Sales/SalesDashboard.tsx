@@ -424,7 +424,8 @@ const SalesDashboard = () => {
             </div>
             
             <div className="flex border-b border-gray-200 -mb-px">
-                {availableTabs.map(tab => <TabButton key={tab.id} id={tab.id} label={tab.label} />)}
+                {/* Fix: Use spread operator to pass props to TabButton, resolving a TypeScript error related to the 'key' prop. */}
+                {availableTabs.map(tab => <TabButton key={tab.id} {...tab} />)}
             </div>
 
             <div className="bg-white p-6 rounded-b-lg rounded-r-lg shadow-md border border-gray-200 border-t-0">
