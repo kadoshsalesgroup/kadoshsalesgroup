@@ -14,6 +14,7 @@ export interface Asesor {
   nombreCompleto: string;
   email: string;
   fechaIngreso: string; // YYYY-MM-DD
+  fechaNacimiento?: string; // YYYY-MM-DD
   estatus: AsesorStatus;
 }
 
@@ -25,6 +26,7 @@ export enum StatusProspecto {
   Cita = 'Cita',
   RevisandoPropuesta = 'Revisando Propuesta',
   Objeciones = 'Objeciones',
+  Cierre = 'Cierre',
   Apartado = 'Apartado',
   Descartado = 'Descartado',
 }
@@ -34,7 +36,7 @@ export type Interes = string;
 
 export interface Lead {
   id: string;
-  nombreCompleto: string;
+  nombreCompletoProspecto: string;
   telefono: string;
   correo: string;
   fechaProspeccion: string; // YYYY-MM-DD
@@ -88,4 +90,22 @@ export interface MonthlyGoal {
   year: number;
   month: number; // 1-12
   goalAmount: number;
+}
+
+// --- CALENDAR TYPES ---
+
+export enum AppointmentType {
+  VisitaDesarrollo = 'Visita a Desarrollo',
+  Zoom = 'Reunión Zoom',
+  Videollamada = 'Videollamada',
+  VisitaOficina = 'Visita a Oficina',
+}
+
+export interface Appointment {
+  id: string;
+  type: AppointmentType;
+  date: string; // ISO String with time
+  asesorId: string;
+  notes?: string;
+  createdByEmail: string;
 }

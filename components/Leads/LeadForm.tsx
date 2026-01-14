@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Lead, StatusProspecto, Role } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import Modal from '../common/Modal';
@@ -12,18 +12,22 @@ interface LeadFormProps {
 
 const LeadForm: React.FC<LeadFormProps> = ({ isOpen, onClose, leadToEdit }) => {
   const { addLead, updateLead, asesores, currentUser, role } = useAppContext();
-  
-  const getDefaultAsesorId = () => {
-    if (role === Role.Asesor && currentUser) {
-      return currentUser.id;
-    }
-    // For Lider role, or as a fallback, default to the first active advisor
-    const firstActive = asesores.find(a => a.estatus === 'Activo');
-    return firstActive ? firstActive.id : '';
-  };
 
-  const initialFormState = {
-    nombreCompleto: '',
+  // FIX: Made status check case-insensitive to prevent issues with data from the database (e.g., 'activo' vs 'Activo').
+  // This ensures the advisor list populates correctly even with minor data inconsistencies.
+  const selectableAsesores = useMemo(() => {
+    const active = asesores.filter(a => a.estatus?.toLowerCase() === 'activo');
+    if (leadToEdit?.asesorId) {
+      const assignedAsesor = asesores.find(a => a.id === leadToEdit.asesorId);
+      if (assignedAsesor && !active.some(a => a.id === assignedAsesor.id)) {
+        return [...active, assignedAsesor].sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto));
+      }
+    }
+    return active.sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto));
+  }, [asesores, leadToEdit]);
+
+  const [formData, setFormData] = useState({
+    nombreCompletoProspecto: '',
     telefono: '',
     correo: '',
     fechaProspeccion: new Date().toISOString().split('T')[0],
@@ -32,44 +36,69 @@ const LeadForm: React.FC<LeadFormProps> = ({ isOpen, onClose, leadToEdit }) => {
     observaciones: '',
     estatus: StatusProspecto.NoContactado,
     ciudadOrigen: '',
-    asesorId: getDefaultAsesorId(),
-  };
+    asesorId: '',
+  });
 
-  const [formData, setFormData] = useState(initialFormState);
-
+  // FIX: Refactored state management to prevent bugs.
+  // This effect now ONLY resets the form when the modal is opened, preventing accidental data loss if the user
+  // starts typing before the advisor list has finished loading in the background.
   useEffect(() => {
-    if (leadToEdit) {
-      setFormData({
-        ...leadToEdit,
-        fechaProspeccion: leadToEdit.fechaProspeccion.split('T')[0]
-      });
-    } else {
-      resetForm();
+    if (isOpen) {
+      if (leadToEdit) {
+        setFormData({
+          ...leadToEdit,
+          fechaProspeccion: leadToEdit.fechaProspeccion.split('T')[0],
+        });
+      } else {
+        setFormData({
+          nombreCompletoProspecto: '',
+          telefono: '',
+          correo: '',
+          fechaProspeccion: new Date().toISOString().split('T')[0],
+          lugarProspeccion: '',
+          interes: '',
+          observaciones: '',
+          estatus: StatusProspecto.NoContactado,
+          ciudadOrigen: '',
+          asesorId: '', // Start with no advisor selected; the next effect will set it.
+        });
+      }
     }
-  }, [leadToEdit, isOpen, currentUser, role]);
+  }, [leadToEdit, isOpen]);
 
-  const resetForm = () => {
-    setFormData({
-      ...initialFormState,
-      asesorId: getDefaultAsesorId(),
-    });
-  };
+  // This separate effect handles setting the default advisor for NEW leads once the list is available.
+  // It runs without resetting the other form fields.
+  useEffect(() => {
+    if (isOpen && !leadToEdit && !formData.asesorId && selectableAsesores.length > 0) {
+      let defaultAsesorId = '';
+      if (role === Role.Asesor && currentUser) {
+        defaultAsesorId = currentUser.id;
+      } else if (selectableAsesores.length > 0) {
+        // The list from useMemo is already sorted.
+        defaultAsesorId = selectableAsesores[0].id;
+      }
+
+      if (defaultAsesorId) {
+        setFormData(prev => ({ ...prev, asesorId: defaultAsesorId }));
+      }
+    }
+  }, [isOpen, leadToEdit, selectableAsesores, currentUser, role, formData.asesorId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.asesorId) {
       alert("Por favor, seleccione un asesor.");
       return;
     }
     if (leadToEdit) {
-      updateLead({ ...leadToEdit, ...formData });
+      await updateLead({ ...leadToEdit, ...formData });
     } else {
-      addLead(formData);
+      await addLead(formData);
     }
     onClose();
   };
@@ -83,8 +112,8 @@ const LeadForm: React.FC<LeadFormProps> = ({ isOpen, onClose, leadToEdit }) => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Nombre completo</label>
-            <input type="text" name="nombreCompleto" value={formData.nombreCompleto} onChange={handleChange} required className={formInputClass} placeholder="Nombre del prospecto" />
+            <label className="block text-sm font-medium text-gray-700">Nombre Completo Prospecto</label>
+            <input type="text" name="nombreCompletoProspecto" value={formData.nombreCompletoProspecto} onChange={handleChange} required className={formInputClass} placeholder="Nombre del prospecto" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Teléfono</label>
@@ -118,9 +147,13 @@ const LeadForm: React.FC<LeadFormProps> = ({ isOpen, onClose, leadToEdit }) => {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Asesor</label>
-            <select name="asesorId" value={formData.asesorId} onChange={handleChange} required className={formSelectClass}>
-              <option value="">Seleccione un asesor</option>
-              {asesores.filter(a => a.estatus === 'Activo').map(asesor => <option key={asesor.id} value={asesor.id}>{asesor.nombreCompleto}</option>)}
+            <select name="asesorId" value={formData.asesorId} onChange={handleChange} required className={formSelectClass} disabled={selectableAsesores.length === 0}>
+              <option value="">{asesores.length === 0 ? 'Cargando asesores...' : 'Seleccione un asesor'}</option>
+              {selectableAsesores.map(asesor => (
+                <option key={asesor.id} value={asesor.id}>
+                  {asesor.nombreCompleto} {asesor.estatus?.toLowerCase() !== 'activo' ? '(Inactivo)' : ''}
+                </option>
+              ))}
             </select>
           </div>
         </div>

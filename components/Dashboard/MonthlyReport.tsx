@@ -50,17 +50,32 @@ const MonthlyReport = () => {
                  const dateStr = lead.fechaProspeccion.split('T')[0];
                  if (data[dateStr] && data[dateStr][lead.asesorId]) {
                     data[dateStr][lead.asesorId].newProspects++;
-                    // A new prospect counts as 1 follow-up/interaction
                     data[dateStr][lead.asesorId].followUps += lead.interacciones > 0 ? lead.interacciones : 1;
                  }
             }
         });
         
-        // This is a simplified view of follow-ups based on interactions count.
-        // A more robust system would track each interaction event with a date.
-        
         return data;
     }, [leadsForUser, selectedMonth, activeAsesores]);
+
+    // NEW: Calculate Monthly Totals for each advisor
+    const monthlyTotals = useMemo(() => {
+        const totals: Record<string, DailyActivity> = {};
+        displayAsesores.forEach(asesor => {
+            totals[asesor.id] = { newProspects: 0, followUps: 0 };
+        });
+
+        Object.values(dailyActivityData).forEach(dayData => {
+            displayAsesores.forEach(asesor => {
+                if (dayData[asesor.id]) {
+                    totals[asesor.id].newProspects += dayData[asesor.id].newProspects;
+                    totals[asesor.id].followUps += dayData[asesor.id].followUps;
+                }
+            });
+        });
+
+        return totals;
+    }, [dailyActivityData, displayAsesores]);
 
     const getMonthYearOptions = () => {
         const options = [];
@@ -103,7 +118,7 @@ const MonthlyReport = () => {
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-center text-gray-600">
-                        <thead className="text-xs text-gray-700 uppercase bg-sky-100 sticky top-0">
+                        <thead className="text-xs text-gray-700 uppercase bg-sky-100 sticky top-0 z-10">
                             <tr>
                                 <th rowSpan={2} className="px-4 py-3 border border-sky-200">Día</th>
                                 {displayAsesores.map(asesor => (
@@ -121,7 +136,7 @@ const MonthlyReport = () => {
                         </thead>
                         <tbody className="bg-white">
                             {Object.entries(dailyActivityData).map(([date, advisorData]) => (
-                                <tr key={date} className="border-b border-sky-200">
+                                <tr key={date} className="border-b border-sky-200 hover:bg-sky-50 transition-colors">
                                     <td className="px-4 py-2 font-medium border-x border-sky-200">{new Date(date).toLocaleDateString('es-MX', { day: '2-digit' })}</td>
                                     {displayAsesores.map(asesor => (
                                         <React.Fragment key={`${date}-${asesor.id}`}>
@@ -132,6 +147,22 @@ const MonthlyReport = () => {
                                 </tr>
                             ))}
                         </tbody>
+                        {/* FOOTER: Monthly Totals Row */}
+                        <tfoot className="bg-sky-100 font-bold text-maderas-blue border-t-2 border-sky-300">
+                            <tr>
+                                <td className="px-4 py-3 border border-sky-200">TOTAL MES</td>
+                                {displayAsesores.map(asesor => (
+                                    <React.Fragment key={`${asesor.id}-total`}>
+                                        <td className="px-2 py-3 border border-sky-200 text-lg">
+                                            {monthlyTotals[asesor.id]?.newProspects || 0}
+                                        </td>
+                                        <td className="px-2 py-3 border border-sky-200 text-lg">
+                                            {monthlyTotals[asesor.id]?.followUps || 0}
+                                        </td>
+                                    </React.Fragment>
+                                ))}
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>

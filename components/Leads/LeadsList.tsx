@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import LeadForm from './LeadForm';
@@ -16,7 +15,7 @@ const DescarteModal: React.FC<{ lead: Lead; onClose: () => void; onConfirm: (mot
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
                 <div className="p-4 border-b">
-                    <h3 className="text-lg font-bold text-gray-800">Descartar Prospecto: {lead.nombreCompleto}</h3>
+                    <h3 className="text-lg font-bold text-gray-800">Descartar Prospecto: {lead.nombreCompletoProspecto}</h3>
                 </div>
                 <div className="p-4">
                     <label className="block text-sm font-medium text-gray-700">Motivo de descarte</label>
@@ -53,9 +52,9 @@ const LeadsList = () => {
     setIsFormOpen(true);
   };
 
-  const handleDelete = (leadId: string) => {
+  const handleDelete = async (leadId: string) => {
     if (window.confirm('¿Está seguro de que desea eliminar este prospecto?')) {
-      deleteLead(leadId);
+      await deleteLead(leadId);
     }
   };
 
@@ -73,24 +72,38 @@ const LeadsList = () => {
     }
   };
 
-  const handleConfirmDescarte = (motivo: string) => {
+  const handleConfirmDescarte = async (motivo: string) => {
     if (leadToDiscard && motivo) {
-        updateLeadStatus(leadToDiscard.id, StatusProspecto.Descartado, motivo);
+        await updateLeadStatus(leadToDiscard.id, StatusProspecto.Descartado, motivo);
     }
     setLeadToDiscard(null);
   };
 
+  const getIndicator = (lead: Lead): '🔔' | '✅' | '' => {
+    const obs = lead.observaciones?.toLowerCase() || '';
+    const requestedHelp = obs.includes("llamada de calidad") || obs.includes("solicita apoyo");
+    const isResolved = obs.includes("atendido") || obs.includes("resuelto");
+
+    if (requestedHelp && !isResolved) {
+        return "🔔";
+    }
+    if (isResolved) {
+        return "✅";
+    }
+    return "";
+  };
+
   const filteredLeads = useMemo(() => {
-    // PERMISSION RULE: Leaders can see all leads, while Advisors can only see records they created.
+    // PERMISSION RULE: Leaders can see all leads, while Advisors can only see records assigned to them.
     const leadsForUser = (role === Role.Lider || !currentUser)
       ? leads
-      : leads.filter(lead => lead.createdByEmail === currentUser.email);
+      : leads.filter(lead => lead.asesorId === currentUser.id);
 
     return leadsForUser.filter(lead => {
         const asesor = asesores.find(a => a.id === lead.asesorId);
         const searchTermLower = filters.searchTerm.toLowerCase();
         const searchMatch = 
-            lead.nombreCompleto.toLowerCase().includes(searchTermLower) ||
+            lead.nombreCompletoProspecto.toLowerCase().includes(searchTermLower) ||
             lead.correo.toLowerCase().includes(searchTermLower) ||
             lead.lugarProspeccion.toLowerCase().includes(searchTermLower) ||
             lead.interes.toLowerCase().includes(searchTermLower) ||
@@ -110,7 +123,7 @@ const LeadsList = () => {
   
   const handleExport = () => {
     const dataToExport = filteredLeads.map(lead => ({
-        'Nombre completo': lead.nombreCompleto,
+        'Nombre Completo Prospecto': lead.nombreCompletoProspecto,
         'Teléfono': lead.telefono,
         'Correo': lead.correo,
         'Fecha de prospección': lead.fechaProspeccion,
@@ -138,7 +151,7 @@ const LeadsList = () => {
          if (!file) return;
 
          const reader = new FileReader();
-         reader.onload = (event) => {
+         reader.onload = async (event) => {
              try {
                  const data = new Uint8Array(event.target?.result as ArrayBuffer);
                  const workbook = XLSX.read(data, { type: 'array', cellDates: true });
@@ -153,18 +166,30 @@ const LeadsList = () => {
 
                  let importedCount = 0;
                  let skippedCount = 0;
+                 let duplicateCount = 0;
                  const leadsToImport: Omit<Lead, 'id' | 'interacciones' | 'createdByEmail'>[] = [];
+                 
+                 // Create a set of existing phone numbers for efficient duplicate checking.
+                 // Normalize by removing non-digit characters.
+                 const existingPhones = new Set(leads.map(lead => lead.telefono.replace(/\D/g, '')));
 
                  json.forEach((row: any) => {
                      const advisorName = row['Asesor']?.trim();
                      const asesor = asesores.find(a => a.nombreCompleto.toLowerCase() === advisorName?.toLowerCase());
+                     const phone = String(row['Teléfono'] || '').replace(/\D/g, '');
                      
-                     if (!row['Nombre completo'] || !row['Teléfono'] || !asesor) {
+                     if (!row['Nombre Completo Prospecto'] || !phone || !asesor) {
                          console.warn(`Faltan datos (Nombre/Teléfono/Asesor válido) en la fila. Saltando:`, row);
                          skippedCount++;
                          return;
                      }
                      
+                     // DUPLICATE CHECK: Skip if a lead with the same normalized phone number already exists.
+                     if (existingPhones.has(phone)) {
+                         duplicateCount++;
+                         return;
+                     }
+
                      const fechaProspeccionRaw = row['Fecha de prospección'];
                      let fechaProspeccion: string;
 
@@ -176,7 +201,7 @@ const LeadsList = () => {
                      }
 
                      const newLeadData = {
-                         nombreCompleto: row['Nombre completo'],
+                         nombreCompletoProspecto: row['Nombre Completo Prospecto'],
                          telefono: String(row['Teléfono']),
                          correo: row['Correo'] || '',
                          fechaProspeccion: fechaProspeccion,
@@ -188,14 +213,23 @@ const LeadsList = () => {
                          asesorId: asesor.id,
                      };
                      leadsToImport.push(newLeadData);
+                     // Add the new phone to the set to avoid duplicates within the same import file.
+                     existingPhones.add(phone);
                      importedCount++;
                  });
                  
                  if (leadsToImport.length > 0) {
-                    addMultipleLeads(leadsToImport);
+                    await addMultipleLeads(leadsToImport);
                  }
-
-                 alert(`Importación completada. ${importedCount} prospectos agregados, ${skippedCount} omitidos.`);
+                 
+                 let summary = `Importación completada.\n- ${importedCount} prospectos agregados.`;
+                 if (skippedCount > 0) {
+                    summary += `\n- ${skippedCount} omitidos por datos faltantes.`
+                 }
+                 if (duplicateCount > 0) {
+                    summary += `\n- ${duplicateCount} duplicados omitidos (ya existían).`
+                 }
+                 alert(summary);
 
              } catch (error) {
                  console.error("Error al importar el archivo:", error);
@@ -239,7 +273,7 @@ const LeadsList = () => {
           <table className="w-full text-sm text-left text-gray-600">
             <thead className="text-xs text-gray-700 uppercase bg-gray-50">
               <tr>
-                <th className="px-4 py-3">Nombre completo</th>
+                <th className="px-4 py-3">Nombre Completo Prospecto</th>
                 <th className="px-4 py-3">Teléfono</th>
                 <th className="px-4 py-3">Correo</th>
                 <th className="px-4 py-3">Fecha de prospección</th>
@@ -254,9 +288,17 @@ const LeadsList = () => {
             <tbody>
               {filteredLeads.map(lead => {
                   const asesor = asesores.find(a => a.id === lead.asesorId);
+                  const indicator = getIndicator(lead);
+                  let rowClass = "border-b hover:bg-gray-50";
+                  if (indicator === '🔔') {
+                      rowClass = "border-b bg-yellow-100 hover:bg-yellow-200";
+                  }
                   return (
-                    <tr key={lead.id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-2 font-medium text-gray-900">{lead.nombreCompleto}</td>
+                    <tr key={lead.id} className={rowClass}>
+                      <td className="px-4 py-2 font-medium text-gray-900">
+                        <span className="inline-block w-6">{indicator}</span>
+                        {lead.nombreCompletoProspecto}
+                      </td>
                       <td className="px-4 py-2">{lead.telefono}</td>
                       <td className="px-4 py-2">{lead.correo}</td>
                       <td className="px-4 py-2">{new Date(lead.fechaProspeccion).toLocaleDateString()}</td>
@@ -268,7 +310,7 @@ const LeadsList = () => {
                           value={lead.estatus}
                           onChange={(e) => handleStatusChange(lead, e.target.value as StatusProspecto)}
                           className="w-full p-1.5 border border-gray-200 rounded-md text-xs bg-white focus:outline-none focus:ring-1 focus:ring-maderas-blue hover:border-gray-400"
-                          aria-label={`Estatus de ${lead.nombreCompleto}`}
+                          aria-label={`Estatus de ${lead.nombreCompletoProspecto}`}
                         >
                           {KANBAN_STAGES.map(stage => (
                             <option key={stage} value={stage}>{stage}</option>

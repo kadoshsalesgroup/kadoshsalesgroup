@@ -5,23 +5,34 @@ import { Role } from '../../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const KPIsDashboard = () => {
-    const { leads, asesores, currentUser, role } = useAppContext();
+    const { leads, asesores, appointments, currentUser, role } = useAppContext();
     const [selectedAsesor, setSelectedAsesor] = useState<string>('');
 
     const activeAsesores = useMemo(() => asesores.filter(a => a.estatus === 'Activo'), [asesores]);
     
+    // Apply permission rules to Leads
     const filteredLeads = useMemo(() => {
-        // PERMISSION RULE: Leaders see KPIs for all leads, while Advisors only see their own created records.
         const leadsForUser = (role === Role.Lider || !currentUser)
             ? leads
             : leads.filter(lead => lead.createdByEmail === currentUser.email);
         
-        // Further filter by selected advisor (only for leaders)
         if (role === Role.Lider && selectedAsesor) {
             return leadsForUser.filter(lead => lead.asesorId === selectedAsesor);
         }
         return leadsForUser;
     }, [leads, selectedAsesor, currentUser, role]);
+
+    // NEW: Apply permission rules to Appointments (Calendar)
+    const filteredAppointments = useMemo(() => {
+        const appsForUser = (role === Role.Lider || !currentUser)
+            ? appointments
+            : appointments.filter(app => app.createdByEmail === currentUser.email || app.asesorId === currentUser.id);
+
+        if (role === Role.Lider && selectedAsesor) {
+            return appsForUser.filter(app => app.asesorId === selectedAsesor);
+        }
+        return appsForUser;
+    }, [appointments, selectedAsesor, currentUser, role]);
 
     const prospectosPorMes = useMemo(() => {
         const data: { [key: string]: number } = {};
@@ -46,9 +57,10 @@ const KPIsDashboard = () => {
         return Object.entries(data).map(([name, value]) => ({ name, value }));
     }, [filteredLeads]);
     
+    // UPDATED: Now counting from the appointments collection (Calendar)
     const numeroDeCitas = useMemo(() => {
-        return filteredLeads.filter(lead => lead.estatus === 'Cita').length;
-    }, [filteredLeads]);
+        return filteredAppointments.length;
+    }, [filteredAppointments]);
 
     const porcentajeConversion = useMemo(() => {
         const totalLeads = filteredLeads.length;
@@ -91,7 +103,7 @@ const KPIsDashboard = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <KPICard title="Total de Prospectos" value={filteredLeads.length} description="Prospectos activos en el embudo" />
-                <KPICard title="Número de Citas" value={numeroDeCitas} description="Citas agendadas este periodo" />
+                <KPICard title="Número de Citas" value={numeroDeCitas} description="Citas agendadas en el calendario" />
                 <KPICard title="Tasa de Conversión" value={`${porcentajeConversion}%`} description="De prospecto a apartado" />
                 <KPICard title="Total de Interacciones" value={totalInteracciones} description="Seguimientos realizados" />
             </div>
@@ -114,7 +126,6 @@ const KPIsDashboard = () => {
                     <h3 className="font-bold text-lg text-maderas-blue mb-4">Lugar de Prospección</h3>
                     <ResponsiveContainer width="100%" height={300}>
                          <PieChart>
-                            {/* Fix: Resolved recharts typing issue by providing a compatible inline type for the Pie label prop. The previous type was too strict, causing a mismatch. */}
                             <Pie data={lugarDeProspeccion} cx="50%" cy="50%" labelLine={false} outerRadius={100} fill="#8884d8" dataKey="value" nameKey="name" label={({ name, percent }: { name?: string, percent?: number }) => `${name} ${(percent! * 100).toFixed(0)}%`}>
                                 {lugarDeProspeccion.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

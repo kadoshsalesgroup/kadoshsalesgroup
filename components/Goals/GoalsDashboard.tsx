@@ -13,9 +13,9 @@ const GoalInput: React.FC<{ asesorId: string; year: number; month: number; curre
         setGoal(currentGoalAmount);
     }, [currentGoalAmount]);
 
-    const handleBlur = () => {
+    const handleBlur = async () => {
         if (goal !== currentGoalAmount) {
-            addOrUpdateMonthlyGoal({ asesorId, year, month, goalAmount: goal });
+            await addOrUpdateMonthlyGoal({ asesorId, year, month, goalAmount: goal });
         }
     };
     
@@ -60,15 +60,20 @@ const GoalsDashboard = () => {
 
     const advisorGoalData = useMemo(() => {
         return visibleAsesores.map(asesor => {
+            // Filter sales that started in this month
             const advisorVentasThisMonth = ventas.filter(v => {
-                const saleDate = new Date(v.fechaCierre || v.fechaInicioProceso);
+                const saleDate = new Date(v.fechaInicioProceso);
                 return (v.asesorPrincipalId === asesor.id || v.asesorSecundarioId === asesor.id) &&
                        saleDate.getFullYear() === year &&
                        saleDate.getMonth() + 1 === month;
             });
 
-            const lotsReserved = advisorVentasThisMonth.filter(v => v.etapaProceso === SaleStage.Apartado).length;
+            // "Apartados" are sales in early stages (not yet contracted)
+            const amountPending = advisorVentasThisMonth
+                .filter(v => [SaleStage.Apartado, SaleStage.DS, SaleStage.Enganche].includes(v.etapaProceso))
+                .reduce((sum, v) => sum + getMontoAsignado(v, asesor.id), 0);
             
+            // "Contratado" are sales that have reached completion
             const amountAchieved = advisorVentasThisMonth
                 .filter(v => v.etapaProceso === SaleStage.Contratado)
                 .reduce((sum, v) => sum + getMontoAsignado(v, asesor.id), 0);
@@ -82,12 +87,27 @@ const GoalsDashboard = () => {
                 asesorId: asesor.id,
                 nombreCompleto: asesor.nombreCompleto,
                 goalAmount,
-                lotsReserved,
+                amountPending,
                 amountAchieved,
                 progress: Math.min(progress, 100) // Cap progress at 100%
             };
         });
     }, [visibleAsesores, ventas, monthlyGoals, year, month]);
+
+    // Calculate Team Totals
+    const teamTotals = useMemo(() => {
+        const totalGoal = advisorGoalData.reduce((sum, d) => sum + d.goalAmount, 0);
+        const totalAchieved = advisorGoalData.reduce((sum, d) => sum + d.amountAchieved, 0);
+        const totalPending = advisorGoalData.reduce((sum, d) => sum + d.amountPending, 0);
+        const totalProgress = totalGoal > 0 ? (totalAchieved / totalGoal) * 100 : 0;
+
+        return {
+            totalGoal,
+            totalAchieved,
+            totalPending,
+            totalProgress: Math.min(totalProgress, 100)
+        };
+    }, [advisorGoalData]);
 
     const changeMonth = (offset: number) => {
         setCurrentDate(prev => {
@@ -121,7 +141,7 @@ const GoalsDashboard = () => {
                             <tr>
                                 <th className="px-4 py-3">Asesor</th>
                                 <th className="px-4 py-3 w-48">Meta Mensual</th>
-                                <th className="px-4 py-3 text-center">Lotes Apartados</th>
+                                <th className="px-4 py-3">Monto Apartado</th>
                                 <th className="px-4 py-3">Monto Contratado</th>
                                 <th className="px-4 py-3 min-w-[200px]">Progreso</th>
                             </tr>
@@ -133,12 +153,12 @@ const GoalsDashboard = () => {
                                     <td className="px-4 py-2">
                                         <GoalInput asesorId={data.asesorId} year={year} month={month} currentGoalAmount={data.goalAmount} />
                                     </td>
-                                    <td className="px-4 py-2 text-center font-medium">{data.lotsReserved}</td>
+                                    <td className="px-4 py-2 font-medium text-amber-600">{formatCurrencyMXN(data.amountPending)}</td>
                                     <td className="px-4 py-2 font-semibold text-emerald-600">{formatCurrencyMXN(data.amountAchieved)}</td>
                                     <td className="px-4 py-2">
                                         <div className="w-full bg-gray-200 rounded-full h-5 relative">
                                             <div 
-                                                className="bg-emerald-500 h-5 rounded-full text-white text-xs flex items-center justify-center transition-all duration-500"
+                                                className="bg-emerald-500 h-5 rounded-full transition-all duration-500"
                                                 style={{ width: `${data.progress}%` }}
                                             >
                                             </div>
@@ -157,6 +177,28 @@ const GoalsDashboard = () => {
                                 </tr>
                             )}
                         </tbody>
+                        {advisorGoalData.length > 0 && (
+                            <tfoot className="bg-maderas-blue/5 font-bold">
+                                <tr>
+                                    <td className="px-4 py-4 text-maderas-blue">TOTAL EQUIPO</td>
+                                    <td className="px-4 py-4 text-maderas-blue">{formatCurrencyMXN(teamTotals.totalGoal)}</td>
+                                    <td className="px-4 py-4 text-amber-700">{formatCurrencyMXN(teamTotals.totalPending)}</td>
+                                    <td className="px-4 py-4 text-emerald-700">{formatCurrencyMXN(teamTotals.totalAchieved)}</td>
+                                    <td className="px-4 py-4">
+                                        <div className="w-full bg-gray-300 rounded-full h-6 relative shadow-inner">
+                                            <div 
+                                                className="bg-maderas-blue h-6 rounded-full transition-all duration-700"
+                                                style={{ width: `${teamTotals.totalProgress}%` }}
+                                            >
+                                            </div>
+                                             <span className="absolute inset-0 flex items-center justify-center text-xs font-black text-maderas-blue drop-shadow-sm">
+                                                TOTAL: {teamTotals.totalProgress.toFixed(1)}%
+                                             </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        )}
                     </table>
                 </div>
             </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Venta, SaleStage, SaleStatus } from '../../types';
 import { useAppContext } from '../../context/AppContext';
@@ -47,7 +46,7 @@ const SalesForm: React.FC<SalesFormProps> = ({ isOpen, onClose, ventaToEdit }) =
     } else {
       setFormData(initialFormData);
     }
-  }, [ventaToEdit, isOpen]);
+  }, [ventaToEdit, isOpen, asesores]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -57,7 +56,17 @@ const SalesForm: React.FC<SalesFormProps> = ({ isOpen, onClose, ventaToEdit }) =
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleMontoBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value);
+    if (!isNaN(value)) {
+        setFormData(prev => ({
+            ...prev,
+            monto: parseFloat(value.toFixed(2))
+        }));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.asesorPrincipalId) {
       alert("Por favor, seleccione un asesor principal.");
@@ -67,16 +76,20 @@ const SalesForm: React.FC<SalesFormProps> = ({ isOpen, onClose, ventaToEdit }) =
       alert("Por favor, ingrese un nombre de lote.");
       return;
     }
+    
+    const finalMonto = parseFloat(formData.monto.toFixed(2));
+
     const dataToSave = {
         ...formData,
+        monto: finalMonto,
         asesorSecundarioId: formData.asesorSecundarioId || undefined,
         fechaCierre: formData.fechaCierre || undefined,
         estatusProceso: (formData.etapaProceso === SaleStage.Contratado || formData.etapaProceso === SaleStage.Cancelado) ? SaleStatus.Closed : SaleStatus.InProgress
     };
     if (ventaToEdit) {
-      updateVenta({ ...ventaToEdit, ...dataToSave });
+      await updateVenta({ ...ventaToEdit, ...dataToSave });
     } else {
-      addVenta(dataToSave);
+      await addVenta(dataToSave);
     }
     onClose();
   };
@@ -97,7 +110,7 @@ const SalesForm: React.FC<SalesFormProps> = ({ isOpen, onClose, ventaToEdit }) =
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Monto (MXN)</label>
-            <input type="number" name="monto" value={formData.monto} onChange={handleChange} required min="0" className={formInputClass} />
+            <input type="number" name="monto" value={formData.monto} onChange={handleChange} onBlur={handleMontoBlur} required min="0" step="0.01" className={formInputClass} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Fecha de inicio del proceso</label>

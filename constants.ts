@@ -9,6 +9,7 @@ export const KANBAN_STAGES: StatusProspecto[] = [
   StatusProspecto.Cita,
   StatusProspecto.RevisandoPropuesta,
   StatusProspecto.Objeciones,
+  StatusProspecto.Cierre,
   StatusProspecto.Apartado,
   StatusProspecto.Descartado,
 ];
@@ -21,6 +22,7 @@ export const STAGE_COLORS: Record<StatusProspecto, { bg: string; text: string; h
     [StatusProspecto.Cita]:               { bg: 'bg-amber-50',   text: 'text-amber-800',   headerBg: 'bg-amber-200' },
     [StatusProspecto.RevisandoPropuesta]: { bg: 'bg-orange-50',  text: 'text-orange-800',  headerBg: 'bg-orange-200' },
     [StatusProspecto.Objeciones]:         { bg: 'bg-yellow-50',  text: 'text-yellow-800',  headerBg: 'bg-yellow-200' },
+    [StatusProspecto.Cierre]:             { bg: 'bg-teal-50',    text: 'text-teal-800',    headerBg: 'bg-teal-200' },
     [StatusProspecto.Apartado]:           { bg: 'bg-emerald-50', text: 'text-emerald-800', headerBg: 'bg-emerald-200' },
     [StatusProspecto.Descartado]:         { bg: 'bg-rose-50',    text: 'text-rose-800',    headerBg: 'bg-rose-200' },
 };
